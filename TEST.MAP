@@ -1,0 +1,14 @@
+LINK : warning L4021: no stack segment
+
+ Start  Stop   Length Name                   Class
+ 00000H 0003BH 0003CH DATA                   
+ 00040H 0005DH 0001EH CODE                   
+ 00060H 00140H 000E1H CODE                   
+
+Program entry point at 0004:0000
+
+Unresolved externals:
+
+
+BISEARCH in file(s):
+ TEST.OBJ(test.ASM)

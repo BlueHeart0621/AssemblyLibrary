@@ -12,12 +12,7 @@ code segment
 ;输出参数：dh=1,前者大于后者
 ;		   dh=0,两者相等
 ;		   dh=-1,后者大于前者
-compare	proc far	
-	push ax
-	push cx
-	push si
-	push di
-	
+compare	proc far c uses ax cx si di 
 	push dx
 	and	dx, 00ffh
 	mov	cx, dx

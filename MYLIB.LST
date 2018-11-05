@@ -1,0 +1,301 @@
+Microsoft (R) Macro Assembler Version 6.11		    11/05/18 14:15:40
+mylib.asm						     Page 1 - 1
+
+
+				;---------------------------------------------------------
+				;					库文件准则：
+				;1. 凡是不涉及输出的寄存器均保持为原数据
+				;2. 子程序内定义的标号均以程序名开头
+				;3. 程序跳转到结束用_return，循环(_circle)用_end
+				;4. 寄存器入栈顺序：ax,bx,cx,dx,ds,es,si,di,bp
+				;---------------------------------------------------------
+
+				public	compare,swap,qsort,bisearch
+
+				;---------------------------------------------------------
+				stackpush	macro	number,src1,src2,src3,src4,
+									src5,src6,src7,src8,src9
+					local	stackpush_return
+					cmp	number, 0
+					jle	stackpush_return
+					push	src1
+					number = number-1
+					stackpush_return:
+				endm
+
+				stackpop	macro	number,src1,src2,src3,src4,
+									src5,src6,src7,src8,src9
+					local	stackpop_end,stackpop_circle
+					jle	stackpop_end
+					stackpop_end:
+				endm
+				;=========================================================
+ 0000				data segment 'data'
+ 0000 75 6E 61 76 61 69			unavailable	db	'unavailable','$'
+       6C 61 62 6C 65 24
+ 000C				data ends
+				;=========================================================
+ 0000				code segment 'code'
+					assume cs:code
+				;---------------------------------------------------------
+				;子程序：比较
+				;功能：比较指定数据类型的两个无符号数的大小
+				;输入参数：ds:[si],es:[di]分别指向两个无符号数
+				;		   的首地址，dl存储的为数据类型大小
+				;输出参数：dh=1,前者大于后者
+				;		   dh=0,两者相等
+				;		   dh=-1,后者大于前者
+ 0000				compare	proc far c public uses ax cx si di 
+ 0004  52				push dx
+ 0005  81 E2 00FF			and	dx, 00ffh
+ 0009  8B CA				mov	cx, dx
+ 000B  5A				pop	dx
+					
+ 000C  03 F1				add	si, cx
+ 000E  4E				dec si
+ 000F  03 F9				add	di, cx
+ 0011  4F				dec	di
+ 0012  B6 00				mov	dh, 0
+ 0014					compare_circle:
+ 0014  8A 24					mov	ah, ds:[si]
+ 0016  26: 8A 05				mov	al, es:[di]
+ 0019  38 C4					cmp	ah, al
+ 001B  77 06					ja	compare_above
+ 001D  74 08					jz	compare_equal
+						
+ 001F						compare_less:
+ 001F  B6 FF					mov	dh, -1
+ 0021  EB 08					jmp	compare_circle_end
+ 0023						compare_above:
+ 0023  B6 01					mov	dh, 1
+ 0025  EB 04					jmp compare_circle_end
+						
+ 0027						compare_equal:		;相等则继续比较
+ 0027  4E					dec	si
+ 0028  4F					dec	di
+ 0029  E2 E9				loop	compare_circle
+ 002B					compare_circle_end:
+					ret
+ 0030				compare endp
+				;--------------------------------------------------------------
+				;子程序：交换
+				;功能：交换一对指定类型大小的数据的空间位置
+				;输入参数:ds:[si],es:[di]分别指向两个无符号数的首地址，
+				;		   dl存储的为数据类型大小
+				;输出参数：无
+ 0030				swap proc far 
+ = 0005					number = 5
+					stackpush	number,ax,cx,dx,si,di 
+			     1		cmp	number, 0
+mylib.asm(83): error A2001: immediate operand not allowed
+ stackpush(2): Macro Called From
+  mylib.asm(83): Main Line Code
+ 0030  7E 01		     1		jle	??0000
+ 0032  50		     1		push	ax
+ 0033			     1		??0000:
+ 0033  81 E2 00FF			and	dx, 00ffh
+ 0037  8B CA				mov	cx, dx
+ 0039					swap_circle:
+ 0039  8A 24					mov	ah, ds:[si]
+ 003B  26: 8A 05				mov	al, es:[di]
+ 003E  88 04					mov	ds:[si], al
+ 0040  26: 88 25				mov	es:[di], ah
+ 0043  46					inc	si
+ 0044  47					inc	di
+ 0045  E2 F2				loop	swap_circle
+					stackpop	number,ax,cx,dx,si,di 
+ 0047  7E 00		     1		jle	??0001
+ 0049			     1		??0001:
+ 0049  CB				ret
+ 004A				swap endp
+				;--------------------------------------------------------------
+				;子程序：快排
+				;功能：对一组无符号数据进行排序
+				;输入参数:ds:[si]指向原数组，cx储存的为数组长度，
+				;		   dl存储的为数据类型大小
+				;输出参数：无
+ 004A				qsort proc far c public uses ax bx cx dx es di si
+ 0051  83 F9 01				cmp	cx, 1
+ 0054  76 7E				jbe	qsort_return
+					
+ 0056  8C D8				mov	ax, ds
+ 0058  8E C0				mov	es, ax
+					;取得数组尾地址
+ 005A  B6 00				mov	dh, 0
+ 005C  8B C1				mov	ax, cx
+ 005E  F6 E2				mul	dl
+ 0060  8B F8				mov	di, ax
+ 0062  03 FE				add	di, si
+ 0064  2B FA				sub	di, dx
+
+ 0066  57				push	di
+ 0067  56				push	si
+ 0068					qsort_circle:
+ 0068  3B F7					cmp	si, di
+ 006A  74 44					jz	qsort_circle_end
+						
+ 006C  8B C7					mov	ax, di
+ 006E  2B C6					sub	ax, si
+ 0070  F6 F2					div	dl
+ 0072  8B C8					mov	cx, ax
+ 0074						qsort_left_swap_circle:
+ 0074  9A ---- 0000 R					call far ptr compare
+ 0079  80 FE 00						cmp	dh, 0
+ 007C  7E 07						jle	qsort_left_next_compare
+ 007E  9A ---- 0030 R					call far ptr swap
+ 0083  EB 06						jmp	qsort_left_swap_circle_end
+							
+ 0085							qsort_left_next_compare:
+ 0085  B6 00						mov	dh, 0
+ 0087  03 F2						add	si, dx
+ 0089  E2 E9					loop	qsort_left_swap_circle
+ 008B						qsort_left_swap_circle_end:
+						
+ 008B  3B F7					cmp	si, di
+ 008D  74 21					jz	qsort_circle_end
+						
+ 008F  8B C7					mov	ax, di
+ 0091  2B C6					sub	ax, si
+ 0093  F6 F2					div	dl
+ 0095  8B C8					mov	cx, ax
+ 0097						qsort_right_swap_circle:
+ 0097  9A ---- 0000 R					call far ptr compare
+ 009C  80 FE 00						cmp	dh, 0
+ 009F  7E 07						jle	qsort_right_next_compare
+ 00A1  9A ---- 0030 R					call far ptr swap
+ 00A6  EB 06						jmp	qsort_right_swap_circle_end
+							
+ 00A8							qsort_right_next_compare:
+ 00A8  B6 00						mov	dh, 0
+ 00AA  2B FA						sub	di, dx
+ 00AC  E2 E9					loop	qsort_right_swap_circle
+ 00AE						qsort_right_swap_circle_end:
+ 00AE  EB B8				jmp	qsort_circle
+ 00B0					qsort_circle_end:
+					
+ 00B0  5E				pop	si
+ 00B1  8B C7				mov	ax, di
+ 00B3  2B C6				sub	ax, si
+ 00B5  F6 F2				div	dl
+ 00B7  8B C8				mov	cx, ax
+ 00B9  9A ---- 004A R			call far ptr qsort
+					
+ 00BE  8B F7				mov	si, di
+ 00C0  5F				pop	di
+ 00C1  8B C7				mov	ax, di
+ 00C3  2B C6				sub	ax, si
+ 00C5  F6 F2				div	dl
+ 00C7  8B C8				mov	cx, ax
+ 00C9  81 E2 00FF			and	dx, 00ffh
+ 00CD  03 F2				add	si, dx
+ 00CF  9A ---- 004A R			call far ptr qsort
+					
+ 00D4					qsort_return:
+					ret
+ 00DC				qsort endp
+				;------------------------------------------------------
+				;子程序：折半查找
+				;功能：折半查找指定数据在数组中的位置
+				;输入参数:ds:[si]指向原数组，es:[di]指向要查找的数据，
+				;		   cx储存的为数组长度，dl存储的为数据类型大小
+				;输出参数：si中存储数据的偏移地址（即位置）
+ 00DC				bisearch proc far c public uses ax cx dx ds di
+ 00E1					bisearch_array_circle:
+ 00E1  51					push cx
+ 00E2  57					push di
+ 00E3  56					push si
+ 00E4  B6 00					mov	dh, 0
+ 00E6  8B CA					mov	cx, dx
+ 00E8						bisearch_compare_circle:
+ 00E8  9A ---- 0000 R					call far ptr compare
+ 00ED  80 FE 00						cmp	dh, 0
+ 00F0  75 09						jnz	bisearch_compare_circle_end
+ 00F2  47						inc di
+ 00F3  46						inc si
+ 00F4  E2 F2					loop	bisearch_compare_circle
+ 00F6  5E					pop	si
+ 00F7  5F					pop	di
+ 00F8  59					pop cx
+ 00F9  EB 16					jmp	bisearch_return
+						
+ 00FB						bisearch_compare_circle_end:
+ 00FB  5E					pop	si
+ 00FC  5F					pop	di
+ 00FD  59					pop	cx
+ 00FE  B6 00					mov	dh, 0
+ 0100  03 F2					add	si, dx
+ 0102  E2 DD				loop	bisearch_array_circle
+ 0104  B8 ---- R			mov	ax, seg unavailable
+ 0107  8E D8				mov	ds, ax
+ 0109  8D 16 0000 R			lea	dx, unavailable
+ 010D  B4 09				mov	ah, 9
+ 010F  CD 21				int 21h
+ 0111					bisearch_return:
+					ret
+ 0117				bisearch endp
+				;------------------------------------------------------
+ 0117				code ends
+				end
+	
+Microsoft (R) Macro Assembler Version 6.11		    11/05/18 14:15:40
+mylib.asm						     Symbols 2 - 1
+
+
+
+
+Macros:
+
+                N a m e                 Type
+
+stackpop . . . . . . . . . . . .	Proc
+stackpush  . . . . . . . . . . .	Proc
+
+
+Segments and Groups:
+
+                N a m e                 Size     Length   Align   Combine Class
+
+code . . . . . . . . . . . . . .	16 Bit	 0117	  Para	  Private 'CODE'	
+data . . . . . . . . . . . . . .	16 Bit	 000C	  Para	  Private 'DATA'	
+
+
+Procedures,  parameters and locals:
+
+                N a m e                 Type     Value    Attr
+
+bisearch . . . . . . . . . . . .	P Far	 00DC	  code	Length= 003B Public C
+  bisearch_array_circle  . . . .	L Near	 00E1	  code	
+  bisearch_compare_circle  . . .	L Near	 00E8	  code	
+  bisearch_compare_circle_end  .	L Near	 00FB	  code	
+  bisearch_return  . . . . . . .	L Near	 0111	  code	
+compare  . . . . . . . . . . . .	P Far	 0000	  code	Length= 0030 Public C
+  compare_circle . . . . . . . .	L Near	 0014	  code	
+  compare_less . . . . . . . . .	L Near	 001F	  code	
+  compare_above  . . . . . . . .	L Near	 0023	  code	
+  compare_equal  . . . . . . . .	L Near	 0027	  code	
+  compare_circle_end . . . . . .	L Near	 002B	  code	
+qsort  . . . . . . . . . . . . .	P Far	 004A	  code	Length= 00BA Public C
+  qsort_circle . . . . . . . . .	L Near	 0068	  code	
+  qsort_left_swap_circle . . . .	L Near	 0074	  code	
+  qsort_left_next_compare  . . .	L Near	 0085	  code	
+  qsort_left_swap_circle_end . .	L Near	 008B	  code	
+  qsort_right_swap_circle  . . .	L Near	 0097	  code	
+  qsort_right_next_compare . . .	L Near	 00A8	  code	
+  qsort_right_swap_circle_end  .	L Near	 00AE	  code	
+  qsort_circle_end . . . . . . .	L Near	 00B0	  code	
+  qsort_return . . . . . . . . .	L Near	 00D4	  code	
+swap . . . . . . . . . . . . . .	P Far	 0030	  code	Length= 001A Public
+  ??0000 . . . . . . . . . . . .	L Near	 0033	  code	
+  swap_circle  . . . . . . . . .	L Near	 0039	  code	
+  ??0001 . . . . . . . . . . . .	L Near	 0049	  code	
+
+
+Symbols:
+
+                N a m e                 Type     Value    Attr
+
+number . . . . . . . . . . . . .	Number	 0004h	 
+unavailable  . . . . . . . . . .	Byte	 0000	  data	
+
+	   0 Warnings
+	   1 Errors
